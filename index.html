@@ -146,6 +146,13 @@
   .note p{margin:0 0 12px;color:var(--text-2);line-height:1.6}
   .note p strong{color:var(--text);font-weight:500}
   .err{color:var(--red);font-size:12px;min-height:16px;font-family:var(--mono)}
+  .fetchrow{display:flex;gap:8px}
+  .fetchrow input{flex:1}
+  .fetchrow .btn{white-space:nowrap}
+  .fetchrow .btn[disabled]{opacity:.5;cursor:default}
+  .hint{font-family:var(--mono);font-size:11px;color:var(--text-3);min-height:14px;margin-top:6px}
+  .hint.ok{color:var(--green)}
+  .hint.warn{color:var(--amber)}
 
   @media (max-width:680px){
     .bar-in{gap:10px;padding:10px 14px}
@@ -190,8 +197,11 @@
 <div class="modal" id="editModal">
   <div class="panel">
     <h2 id="editTitle"><span>//</span>ADD EVENT</h2>
+    <label class="field"><span>Link <em>(paste the event page, then fetch to fill in the rest)</em></span>
+      <div class="fetchrow"><input id="fUrl" type="url" placeholder="https://" autocomplete="off"><button class="btn" id="fetchBtn" type="button">Fetch details</button></div>
+      <div class="hint" id="fetchHint"></div>
+    </label>
     <label class="field"><span>Title</span><input id="fTitle" required placeholder="Event name"></label>
-    <label class="field"><span>Link <em>(registration or landing page)</em></span><input id="fUrl" type="url" placeholder="https://"></label>
     <div class="grid2">
       <label class="field"><span>Start date <em>(YYYY-MM-DD, drives sorting)</em></span><input id="fStart" required placeholder="2026-10-14" inputmode="numeric"></label>
       <label class="field"><span>Date as displayed</span><input id="fDateStr" placeholder="Oct 14–16, 2026"></label>
@@ -413,17 +423,41 @@ const editModal=$('editModal');
 const f={title:$('fTitle'),url:$('fUrl'),start:$('fStart'),dateStr:$('fDateStr'),loc:$('fLoc'),sponsors:$('fSponsors')};
 function openAdd(){
   editingId=null; $('editTitle').innerHTML='<span>//</span>ADD EVENT'; $('deleteBtn').style.display='none';
-  Object.values(f).forEach(i=>i.value=''); $('fErr').textContent='';
-  editModal.classList.add('open'); f.title.focus();
+  Object.values(f).forEach(i=>i.value=''); $('fErr').textContent=''; setHint('');
+  editModal.classList.add('open'); f.url.focus();
 }
 function openEdit(id){
   const e=events.find(x=>x.id===id); if(!e) return;
   editingId=id; $('editTitle').innerHTML='<span>//</span>EDIT EVENT'; $('deleteBtn').style.display='';
   f.title.value=e.title; f.url.value=e.url||''; f.start.value=e.startDate; f.dateStr.value=e.dateStr||'';
-  f.loc.value=e.location||''; f.sponsors.value=e.sponsors||''; $('fErr').textContent='';
+  f.loc.value=e.location||''; f.sponsors.value=e.sponsors||''; $('fErr').textContent=''; setHint('');
   editModal.classList.add('open'); f.title.focus();
 }
 function closeEdit(){editModal.classList.remove('open')}
+const fetchBtn=$('fetchBtn'), fetchHint=$('fetchHint');
+function setHint(t,c=''){fetchHint.textContent=t;fetchHint.className='hint '+c}
+async function fetchDetails(){
+  let url=f.url.value.trim(); if(!url) {setHint('Paste a link first.','warn');f.url.focus();return}
+  if(!/^https?:\/\//i.test(url)){url='https://'+url;f.url.value=url}
+  if(!useSB){setHint('Auto-fill needs the Supabase backend.','warn');return}
+  fetchBtn.disabled=true; setHint('Reading the page…');
+  try{
+    const r=await fetch(`${SUPABASE_URL}/functions/v1/event-preview`,{method:'POST',
+      headers:{'Content-Type':'application/json',apikey:SUPABASE_ANON_KEY,Authorization:`Bearer ${SUPABASE_ANON_KEY}`},
+      body:JSON.stringify({url})});
+    const d=await r.json();
+    if(!r.ok||d.error) throw new Error(d.error||`HTTP ${r.status}`);
+    const fill=(inp,v)=>{if(v&&!inp.value.trim()) inp.value=v};
+    fill(f.title,d.title); fill(f.start,d.startDate); fill(f.dateStr,d.dateStr); fill(f.loc,d.location); fill(f.sponsors,d.sponsors);
+    if(d.startDate) setHint('Filled from the page. Check the details, then save.','ok');
+    else setHint('Got the title, but no date was found on the page. Add it below.','warn');
+    (d.startDate?f.loc:f.start).focus();
+  }catch(e){ setHint(`Couldn't read that page (${e.message}). Fill in the details below.`,'warn'); f.title.focus(); }
+  fetchBtn.disabled=false;
+}
+fetchBtn.onclick=fetchDetails;
+f.url.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();fetchDetails()}});
+f.url.addEventListener('paste',()=>{ if(!editingId && !f.title.value.trim()) setTimeout(fetchDetails,50) });
 function slug(t){return t.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'').slice(0,40)||'event'}
 $('saveBtn').onclick=async()=>{
   const title=f.title.value.trim(), start=f.start.value.trim();
