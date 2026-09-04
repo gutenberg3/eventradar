@@ -1,0 +1,459 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>RADAR // NET</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#050b14; --bg-1:#08111d; --bg-2:#0c1726; --line:#132338; --line-2:#1c3350;
+    --green:#00ffcc; --green-dim:rgba(0,255,204,.14);
+    --blue:#38bdf8; --blue-dim:rgba(56,189,248,.14);
+    --amber:#fbbf24; --amber-dim:rgba(251,191,36,.14);
+    --red:#f87171;
+    --text:#e2ecf5; --text-2:#93a7bd; --text-3:#5a7189; --text-4:#324965;
+    --mono:"IBM Plex Mono",ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+    --sans:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  }
+  *{box-sizing:border-box}
+  html{background:var(--bg)}
+  body{margin:0;color:var(--text);font:14px/1.5 var(--sans);-webkit-font-smoothing:antialiased;min-height:100vh;
+    background:
+      radial-gradient(900px 400px at 15% -10%, rgba(0,255,204,.07), transparent 60%),
+      radial-gradient(700px 300px at 90% 0%, rgba(56,189,248,.06), transparent 60%),
+      var(--bg)}
+  a{color:inherit;text-decoration:none}
+  button,input{font:inherit;color:inherit}
+  button{cursor:pointer;background:none;border:0;padding:0}
+  :focus-visible{outline:2px solid var(--green);outline-offset:2px;border-radius:3px}
+  .mono{font-family:var(--mono)}
+
+  /* ===== command bar ===== */
+  .bar{position:sticky;top:0;z-index:5;background:rgba(5,11,20,.88);backdrop-filter:blur(10px);
+    border-bottom:1px solid var(--line)}
+  .bar::after{content:"";display:block;height:1px;background:linear-gradient(90deg,var(--green),transparent 40%,transparent 60%,var(--blue));opacity:.6}
+  .bar-in{max-width:1060px;margin:0 auto;padding:12px 20px;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+  .brand{font-family:var(--mono);font-weight:600;font-size:15px;letter-spacing:.12em;color:var(--green);
+    text-shadow:0 0 14px rgba(0,255,204,.45);white-space:nowrap}
+  .brand i{font-style:normal;color:var(--text-3);text-shadow:none}
+  .brand b{display:inline-block;width:8px;height:15px;background:var(--green);vertical-align:-2px;margin-left:4px;animation:blink 1.1s steps(1) infinite}
+  @keyframes blink{50%{opacity:0}}
+  .sync{display:inline-flex;align-items:center;gap:7px;font-family:var(--mono);font-size:11px;letter-spacing:.06em;color:var(--text-3);
+    padding:4px 9px;border:1px solid var(--line);border-radius:99px}
+  .dot{width:7px;height:7px;border-radius:50%;background:var(--text-4)}
+  .dot.live{background:var(--green);box-shadow:0 0 8px var(--green)}
+  .dot.local{background:var(--amber)}
+  .dot.err{background:var(--red)}
+  .spacer{flex:1}
+  .idwrap{display:flex;align-items:center;gap:8px;font-family:var(--mono);font-size:11px;color:var(--text-3);letter-spacing:.06em}
+  #initials{width:96px;padding:7px 10px;background:var(--bg-2);color:var(--green);font-family:var(--mono);font-weight:600;
+    border:1px solid var(--line-2);border-radius:5px;text-transform:uppercase;letter-spacing:.14em;text-align:center}
+  #initials::placeholder{color:var(--text-4);text-transform:none;letter-spacing:0;font-weight:400}
+  #initials.flash{border-color:var(--amber);box-shadow:0 0 0 3px var(--amber-dim)}
+  .btn{display:inline-flex;align-items:center;gap:6px;padding:7px 12px;border:1px solid var(--line-2);border-radius:5px;
+    font-family:var(--mono);font-size:12px;letter-spacing:.06em;color:var(--text-2);background:var(--bg-1)}
+  .btn:hover{border-color:var(--blue);color:var(--blue)}
+  .btn.primary{background:var(--green);border-color:var(--green);color:#03211b;font-weight:600}
+  .btn.primary:hover{filter:brightness(1.08);color:#03211b}
+  .btn.danger{color:var(--red);border-color:transparent;background:none}
+  .btn.danger:hover{border-color:var(--red);color:var(--red)}
+
+  /* ===== status line ===== */
+  main{max-width:1060px;margin:0 auto;padding:22px 20px 80px}
+  .status{display:flex;align-items:baseline;gap:18px;flex-wrap:wrap;font-family:var(--mono);font-size:12px;color:var(--text-3);
+    padding-bottom:16px;margin-bottom:6px;border-bottom:1px dashed var(--line)}
+  .status .k{color:var(--text-4)}
+  .status .v{color:var(--text-2)}
+  .status .v.hi{color:var(--green)}
+  .status .sp{flex:1}
+  .switch{display:inline-flex;align-items:center;gap:8px;color:var(--text-3)}
+  .switch .track{width:28px;height:16px;border-radius:99px;background:var(--line-2);position:relative;transition:background .15s}
+  .switch .track::after{content:"";position:absolute;top:2px;left:2px;width:12px;height:12px;border-radius:50%;background:var(--text-2);transition:transform .15s}
+  .switch.on .track{background:var(--green-dim);box-shadow:inset 0 0 0 1px var(--green)}
+  .switch.on .track::after{transform:translateX(12px);background:var(--green)}
+
+  /* ===== timeline ===== */
+  .month{display:grid;grid-template-columns:96px 1fr;column-gap:22px;margin-top:22px}
+  .month-rail{position:sticky;top:78px;align-self:start;font-family:var(--mono);line-height:1.1;padding-top:14px}
+  .month-rail .m{font-size:22px;font-weight:600;letter-spacing:.08em;color:var(--blue)}
+  .month-rail .y{font-size:11px;letter-spacing:.14em;color:var(--text-4);margin-top:3px}
+  .month-rail .c{font-size:11px;color:var(--text-4);margin-top:10px}
+  .events{border-left:1px solid var(--line);padding-left:0}
+
+  .row{position:relative;display:grid;grid-template-columns:1fr auto;gap:6px 18px;align-items:start;
+    padding:14px 14px 14px 26px;border-bottom:1px solid var(--line);transition:background .12s}
+  .row:hover{background:var(--bg-1)}
+  .row::before{content:"";position:absolute;left:-5px;top:21px;width:9px;height:9px;border-radius:50%;
+    background:var(--bg);border:2px solid var(--text-4)}
+  .row.me-y::before{border-color:var(--green);background:var(--green);box-shadow:0 0 8px var(--green)}
+  .row.me-m::before{border-color:var(--amber);background:var(--amber)}
+  .row.me-n::before{border-color:var(--text-4);background:var(--text-4)}
+  .row.past{opacity:.42}
+  .row.past:hover{opacity:.8}
+  .row.next{background:linear-gradient(90deg,var(--green-dim),transparent 55%)}
+  .when{font-family:var(--mono);font-size:12px;color:var(--blue);letter-spacing:.04em;display:flex;gap:10px;align-items:center}
+  .when .tag{font-size:10px;letter-spacing:.14em;color:#03211b;background:var(--green);padding:1px 6px;border-radius:3px;font-weight:600}
+  .when .days{color:var(--text-4)}
+  .title{font-size:16px;font-weight:600;line-height:1.3;margin-top:2px}
+  .title a:hover{color:var(--green)}
+  .title .ext{font-family:var(--mono);font-size:12px;color:var(--text-4);margin-left:6px;font-weight:400}
+  .title a:hover .ext{color:var(--green)}
+  .meta{display:flex;flex-wrap:wrap;gap:4px 14px;color:var(--text-2);font-size:13px;margin-top:3px}
+  .meta .loc{color:var(--text-2)}
+  .meta .hosts{color:var(--text-3)}
+  .edit{font-family:var(--mono);font-size:11px;color:var(--text-4);letter-spacing:.04em;opacity:0;transition:opacity .12s}
+  .row:hover .edit,.edit:focus-visible{opacity:1}
+  .edit:hover{color:var(--blue)}
+  .chips{display:flex;flex-wrap:wrap;gap:6px 12px;margin-top:9px;font-family:var(--mono);font-size:11px}
+  .grp{display:inline-flex;align-items:center;gap:5px}
+  .grp .lbl{color:var(--text-4);letter-spacing:.06em}
+  .chip{padding:2px 7px;border-radius:3px;font-weight:500;letter-spacing:.1em}
+  .chip.y{color:var(--green);background:var(--green-dim)}
+  .chip.m{color:var(--amber);background:var(--amber-dim)}
+  .chip.n{color:var(--text-3);background:rgba(90,113,137,.14);text-decoration:line-through}
+  .chip.me{outline:1px solid currentColor}
+
+  .toggle{display:inline-flex;border:1px solid var(--line-2);border-radius:6px;overflow:hidden;background:var(--bg-2);margin-top:2px}
+  .toggle button{width:40px;height:34px;font-family:var(--mono);font-weight:600;font-size:13px;color:var(--text-3);
+    border-right:1px solid var(--line-2);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:0;line-height:1}
+  .toggle button small{font-size:8px;letter-spacing:.1em;font-weight:400;opacity:.7;margin-top:2px}
+  .toggle button:last-child{border-right:0}
+  .toggle button:hover{color:var(--text);background:var(--bg-1)}
+  .toggle button.on.y{background:var(--green);color:#03211b}
+  .toggle button.on.m{background:var(--amber);color:#2b1d00}
+  .toggle button.on.n{background:var(--text-4);color:var(--text)}
+  .empty{color:var(--text-3);padding:60px 0;text-align:center;font-family:var(--mono)}
+  .empty b{display:block;color:var(--text-2);font-size:16px;margin-bottom:6px;font-weight:500}
+
+  /* ===== modals ===== */
+  .modal{position:fixed;inset:0;background:rgba(3,7,13,.78);backdrop-filter:blur(4px);display:none;
+    align-items:flex-start;justify-content:center;padding:48px 16px;overflow:auto;z-index:10}
+  .modal.open{display:flex}
+  .panel{width:100%;max-width:540px;background:var(--bg-1);border:1px solid var(--line-2);border-radius:8px;padding:22px 22px 18px;
+    box-shadow:0 30px 80px rgba(0,0,0,.6),0 0 0 1px rgba(0,255,204,.06)}
+  .panel h2{margin:0 0 18px;font-family:var(--mono);font-size:13px;letter-spacing:.14em;color:var(--green);font-weight:600}
+  .panel h2 span{color:var(--text-4);margin-right:8px}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:0 14px}
+  .field{display:block;margin-bottom:14px}
+  .field span{display:block;color:var(--text-3);font-size:12px;margin-bottom:5px}
+  .field span em{font-style:normal;color:var(--text-4)}
+  .field input{width:100%;padding:9px 11px;background:var(--bg);color:var(--text);border:1px solid var(--line-2);border-radius:5px}
+  .field input:focus{border-color:var(--green);outline:0;box-shadow:0 0 0 3px var(--green-dim)}
+  .actions{display:flex;gap:8px;justify-content:flex-end;align-items:center;margin-top:8px}
+  .actions .danger{margin-right:auto}
+  .note p{margin:0 0 12px;color:var(--text-2);line-height:1.6}
+  .note p strong{color:var(--text);font-weight:500}
+  .err{color:var(--red);font-size:12px;min-height:16px;font-family:var(--mono)}
+
+  @media (max-width:680px){
+    .bar-in{gap:10px;padding:10px 14px}
+    main{padding:16px 14px 80px}
+    .month{grid-template-columns:1fr;column-gap:0}
+    .month-rail{position:static;display:flex;align-items:baseline;gap:10px;padding:0 0 6px;border-bottom:1px solid var(--line)}
+    .month-rail .m{font-size:16px}
+    .month-rail .y,.month-rail .c{margin:0}
+    .month-rail .c{margin-left:auto}
+    .events{border-left:0}
+    .row{grid-template-columns:1fr;padding:12px 4px}
+    .row::before{display:none}
+    .edit{opacity:1}
+    .toggle{width:100%}
+    .toggle button{flex:1}
+    .grid2{grid-template-columns:1fr}
+  }
+  @media (prefers-reduced-motion:reduce){
+    *{animation:none!important;transition:none!important}
+    .brand b{opacity:1}
+  }
+</style>
+</head>
+<body>
+
+<header class="bar">
+  <div class="bar-in">
+    <span class="brand">RADAR<i>://</i>NET<b></b></span>
+    <span class="sync"><span class="dot" id="dot"></span><span id="syncText">connecting</span></span>
+    <span class="spacer"></span>
+    <label class="idwrap" for="initials">you are <input id="initials" maxlength="8" placeholder="e.g. JC" autocomplete="off" spellcheck="false"></label>
+    <button class="btn primary" id="addBtn">+ EVENT</button>
+    <button class="btn" id="whoBtn">📇 WHO DIS?</button>
+  </div>
+</header>
+
+<main>
+  <div class="status" id="status"></div>
+  <div id="feed"></div>
+</main>
+
+<div class="modal" id="editModal">
+  <div class="panel">
+    <h2 id="editTitle"><span>//</span>ADD EVENT</h2>
+    <label class="field"><span>Title</span><input id="fTitle" required placeholder="Event name"></label>
+    <label class="field"><span>Link <em>(registration or landing page)</em></span><input id="fUrl" type="url" placeholder="https://"></label>
+    <div class="grid2">
+      <label class="field"><span>Start date <em>(YYYY-MM-DD, drives sorting)</em></span><input id="fStart" required placeholder="2026-10-14" inputmode="numeric"></label>
+      <label class="field"><span>Date as displayed</span><input id="fDateStr" placeholder="Oct 14–16, 2026"></label>
+    </div>
+    <label class="field"><span>Location</span><input id="fLoc" placeholder="City, ST (Venue) or Virtual"></label>
+    <label class="field"><span>Hosts / sponsors</span><input id="fSponsors" placeholder="Comma-separated"></label>
+    <div class="err" id="fErr"></div>
+    <div class="actions">
+      <button class="btn danger" id="deleteBtn" style="display:none">Delete event</button>
+      <button class="btn" id="cancelBtn">Cancel</button>
+      <button class="btn primary" id="saveBtn">Save event</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal" id="whoModal">
+  <div class="panel note">
+    <h2><span>//</span>WHO DIS?</h2>
+    <p><strong>Rollcall is by initials or short handle only.</strong> No accounts, no names, no emails. Everyone on this board is part of a trusted circle, so two letters is usually enough.</p>
+    <p>Can't place a set of initials? Message Cobb via Text, Signal, WhatsApp, or Telegram to verify.</p>
+    <p>Y = going · M = maybe · N = out. Tap your choice again to clear it.</p>
+    <div class="actions"><button class="btn primary" id="whoClose">Got it</button></div>
+  </div>
+</div>
+
+<script>
+/* ================= CONFIG =================
+   Supabase > Project Settings > API. Paste both values; leave empty to run without a backend. */
+const SUPABASE_URL = "https://uchznwahycrtqfajhnau.supabase.co";        // e.g. "https://abcdefgh.supabase.co"
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVjaHpud2FoeWNydHFmYWpobmF1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODg1MDE0MDcsImV4cCI6MjEwNDA3NzQwN30.QuX-_rf8hpDIyFlvGFX_iDWXWZXwm2xuvvTPChmyjYc";   // the long "anon public" key
+/* ========================================= */
+
+const KEY_EVENTS='radar_events_v1', KEY_INIT='radar_initials';
+const useSB = SUPABASE_URL && SUPABASE_ANON_KEY;
+const mem={};
+const hasKV = typeof window.storage?.get==='function';
+let hasLS=false; try{localStorage.setItem('_t','1');localStorage.removeItem('_t');hasLS=true}catch(e){}
+const store={
+  mode: useSB?'live':(hasKV?'live':(hasLS?'local':'memory')),
+  async get(key,shared){
+    if(hasKV){ try{const r=await window.storage.get(key,shared);return r?r.value:null}catch(e){return null} }
+    if(hasLS) return localStorage.getItem(key);
+    return mem[key]??null;
+  },
+  async set(key,val,shared){
+    if(hasKV){ const r=await window.storage.set(key,val,shared); if(!r) throw new Error('save failed'); return }
+    if(hasLS){ localStorage.setItem(key,val); return }
+    mem[key]=val;
+  }
+};
+
+/* ---------- Supabase REST (no SDK needed) ---------- */
+const toRow=e=>({id:e.id,title:e.title,start_date:e.startDate,date_str:e.dateStr,location:e.location,url:e.url,sponsors:e.sponsors,
+  y_attendees:e.yAttendees||'',m_attendees:e.mAttendees||'',n_attendees:e.nAttendees||''});
+const fromRow=r=>({id:r.id,title:r.title,startDate:r.start_date,dateStr:r.date_str||'',location:r.location||'',url:r.url||'',sponsors:r.sponsors||'',
+  yAttendees:r.y_attendees||'',mAttendees:r.m_attendees||'',nAttendees:r.n_attendees||''});
+async function sb(path,opts={}){
+  const r=await fetch(`${SUPABASE_URL}/rest/v1/${path}`,{...opts,headers:{
+    apikey:SUPABASE_ANON_KEY,Authorization:`Bearer ${SUPABASE_ANON_KEY}`,'Content-Type':'application/json',...(opts.headers||{})}});
+  if(!r.ok) throw new Error(`${r.status} ${await r.text()}`);
+  return r.status===204?null:r.json();
+}
+const sbAll=()=>sb('events?select=*');
+const sbUpsert=rows=>sb('events',{method:'POST',headers:{Prefer:'resolution=merge-duplicates,return=minimal'},body:JSON.stringify(rows)});
+const sbDelete=id=>sb(`events?id=eq.${encodeURIComponent(id)}`,{method:'DELETE'});
+
+/* ---------- seed data ---------- */
+const SEED=[
+{"id":"ignite-pdx","title":"Ignite PDX Hackathon (Brilliance Labs)","startDate":"2026-09-30","dateStr":"Sep 30 – Oct 2, 2026","location":"Portland, OR","url":"https://brilliancelabs.org/ignite-pdx.html","sponsors":"Brilliance Labs, Ignite AI, Frontier Labs"},
+{"id":"missio-nexus-2026","title":"Missio Nexus Annual Leaders Conference","startDate":"2026-09-30","dateStr":"Sep 30 – Oct 2, 2026","location":"Orlando, FL (Caribe Royale)","url":"https://web.cvent.com/event/654a1d2b-f757-4491-a480-fc3f68a2ccc5/websitePage:3bf16a10-e965-4de4-88df-84d98c5be47d?environment=P2&RefId=homepage","sponsors":"World Vision, Crossworld, Pioneer Bible"},
+{"id":"gloo-hackathon-2026","title":"Gloo AI Hackathon 2026","startDate":"2026-10-14","dateStr":"Oct 14–16, 2026","location":"Boulder, CO","url":"https://www.gloo.com/hackathon","sponsors":"Gloo, AI Innovation Guild, Kingdom Ops"},
+{"id":"missionary-2026","title":"Missionary 2026 National Conference","startDate":"2026-10-14","dateStr":"Oct 14–16, 2026","location":"Dallas-Fort Worth, TX (SWBTS)","url":"https://www.missionary.com/2026","sponsors":"Missionary.com, Radius International, John Piper, Mark Dever"},
+{"id":"indigitous-hack-2026","title":"Indigitous #HACK 2026","startDate":"2026-10-16","dateStr":"Oct 16–18, 2026","location":"Global (50+ Cities & Online)","url":"https://indigitous.org/hack","sponsors":"Indigitous, Cru, Global Tech Networks"},
+{"id":"emnlp-2026","title":"EMNLP 2026 (Empirical Methods in NLP)","startDate":"2026-10-24","dateStr":"Oct 24–29, 2026","location":"Budapest, Hungary","url":"https://2026.emnlp.org/","sponsors":"ACL, SIGDAT, Google, Meta"},
+{"id":"the-builder-2026","title":"The Builder Conference (Stackhouse Ventures)","startDate":"2026-11-02","dateStr":"Nov 2–5, 2026","location":"Jackson Hole, WY (SpringHill Suites)","url":"https://stackhouseventures.com/builder-conference","sponsors":"Stackhouse Ventures, Igniter Media, Church Media Squad"},
+{"id":"reach-2026","title":"Reach Conference 2026","startDate":"2026-11-05","dateStr":"Nov 5–7, 2026","location":"Orlando, FL","url":"https://www.reachconf.org/","sponsors":"Reach Network"},
+{"id":"web-summit-2026","title":"Web Summit 2026","startDate":"2026-11-09","dateStr":"Nov 9–12, 2026","location":"Lisbon, Portugal","url":"https://websummit.com/","sponsors":"Web Summit, Global Tech & Ventures"},
+{"id":"neurips-2026","title":"NeurIPS 2026 (Neural Information Processing)","startDate":"2026-12-06","dateStr":"Dec 6–12, 2026","location":"Vancouver, BC, Canada","url":"https://neurips.cc/","sponsors":"NeurIPS Foundation, DeepMind, OpenAI"},
+{"id":"crosscon","title":"Cross Con 2027","startDate":"2027-01-01","dateStr":"Jan 1–3, 2027","location":"Louisville, KY (KICC)","url":"https://crosscon.com/","sponsors":"Cross Network"},
+{"id":"ces-2027","title":"CES 2027","startDate":"2027-01-05","dateStr":"Jan 5–8, 2027","location":"Las Vegas, NV","url":"https://www.ces.tech/","sponsors":"CTA"},
+{"id":"eth-denver-2027","title":"ETHDenver 2027","startDate":"2027-02-23","dateStr":"Feb 2027","location":"Denver, CO","url":"https://www.ethdenver.com/","sponsors":"SporkDAO"},
+{"id":"exponential-2027","title":"Exponential Global 2027","startDate":"2027-03-01","dateStr":"Mar 1–4, 2027","location":"Orlando, FL (First Baptist)","url":"https://exponential.org/events","sponsors":"Exponential, Church Multiplication Networks"},
+{"id":"sxsw-2027","title":"SXSW Interactive 2027","startDate":"2027-03-12","dateStr":"Mar 12–20, 2027","location":"Austin, TX","url":"https://www.sxsw.com/","sponsors":"SXSW, Tech & Media Sponsors"},
+{"id":"missional-ai-2027","title":"Missional AI Summit 2027","startDate":"2027-03-30","dateStr":"Mar 30 – Apr 1, 2027","location":"Hyatt Regency SFO, SF Bay Area, CA","url":"https://missional.ai/","sponsors":"Missional.ai"},
+{"id":"cla-outcomes-2027","title":"Outcomes Conference 2027 (CLA)","startDate":"2027-04-13","dateStr":"Apr 13–15, 2027","location":"Dallas / Fort Worth, TX","url":"https://outcomesconference.org/","sponsors":"Christian Leadership Alliance"},
+{"id":"consensus-2027","title":"Consensus 2027","startDate":"2027-05-18","dateStr":"May 18–20, 2027","location":"Toronto, Canada","url":"https://consensus.coindesk.com/","sponsors":"CoinDesk, Institutional Web3"}
+].map(e=>({yAttendees:"",mAttendees:"",nAttendees:"",...e}));
+
+/* ---------- state ---------- */
+let events=[], me='', showPast=false;
+const $=id=>document.getElementById(id);
+const feed=$('feed'), dot=$('dot'), syncText=$('syncText'), init=$('initials'), status=$('status');
+const today=new Date().toISOString().slice(0,10);
+const MONTHS=['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
+
+function setSync(state,text){dot.className='dot '+state;syncText.textContent=text}
+function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+const split=s=>s?s.split(';').filter(Boolean):[];
+const join=a=>a.join(';');
+function sortEvents(){events.sort((a,b)=>a.startDate.localeCompare(b.startDate)||a.title.localeCompare(b.title))}
+function daysUntil(d){return Math.round((new Date(d+'T00:00:00')-new Date(today+'T00:00:00'))/864e5)}
+
+/* ---------- persistence ---------- */
+async function load(){
+  try{
+    if(useSB){
+      let rows=await sbAll();
+      if(!rows.length){ await sbUpsert(SEED.map(toRow)); rows=await sbAll(); }
+      events=rows.map(fromRow); setSync('live','live');
+    }else{
+      const raw=await store.get(KEY_EVENTS,true);
+      events=raw?JSON.parse(raw):SEED.map(e=>({...e}));
+      if(!raw) await saveAll();
+      setSync(store.mode==='live'?'live':'local', store.mode==='live'?'live':(store.mode==='local'?'this device only':'session only'));
+    }
+  }catch(e){ console.error(e); events=events.length?events:SEED.map(e=>({...e})); setSync('err','offline'); }
+  me=(hasLS?localStorage.getItem(KEY_INIT):await store.get(KEY_INIT,false))||''; init.value=me;
+  sortEvents(); render();
+}
+async function saveAll(){ await store.set(KEY_EVENTS,JSON.stringify(events),true) }
+async function saveEvent(e){
+  try{ if(useSB) await sbUpsert([toRow(e)]); else await saveAll(); setSync(store.mode==='live'?'live':'local', store.mode==='live'?'saved':'saved locally'); }
+  catch(err){ console.error(err); setSync('err','save failed'); }
+}
+async function deleteEvent(id){
+  try{ if(useSB) await sbDelete(id); else await saveAll(); setSync(store.mode==='live'?'live':'local','saved'); }
+  catch(err){ console.error(err); setSync('err','delete failed'); }
+}
+async function refresh(){
+  if(document.hidden) return;
+  try{
+    if(useSB){ events=(await sbAll()).map(fromRow); }
+    else if(hasKV){ const raw=await store.get(KEY_EVENTS,true); if(raw) events=JSON.parse(raw); }
+    else return;
+    sortEvents(); render(); setSync('live','live');
+  }catch(e){ setSync('err','offline') }
+}
+setInterval(refresh,8000);
+
+/* ---------- render ---------- */
+function myStatus(e){const g=split(e.yAttendees),m=split(e.mAttendees),n=split(e.nAttendees);return g.includes(me)?'y':m.includes(me)?'m':n.includes(me)?'n':''}
+
+function renderStatus(){
+  const upcoming=events.filter(e=>e.startDate>=today);
+  const next=upcoming[0];
+  const mine=events.filter(e=>myStatus(e)==='y').length;
+  const past=events.length-upcoming.length;
+  status.innerHTML=`
+    <span><span class="k">upcoming</span> <span class="v">${upcoming.length}</span></span>
+    ${next?`<span><span class="k">next</span> <span class="v hi">${esc(next.title)}</span> <span class="k">in ${daysUntil(next.startDate)}d</span></span>`:''}
+    ${me?`<span><span class="k">${esc(me)} going to</span> <span class="v">${mine}</span></span>`:''}
+    <span class="sp"></span>
+    ${past?`<button class="switch ${showPast?'on':''}" id="pastToggle" aria-pressed="${showPast}"><span class="track"></span>show ${past} past</button>`:''}`;
+  const t=$('pastToggle'); if(t) t.onclick=()=>{showPast=!showPast;render()};
+}
+
+function render(){
+  renderStatus();
+  const list=showPast?events:events.filter(e=>e.startDate>=today);
+  if(!list.length){feed.innerHTML='<div class="empty"><b>Nothing on the radar</b>Add an event with + EVENT.</div>';return}
+  const nextId=(events.find(e=>e.startDate>=today)||{}).id;
+  const groups=[]; 
+  for(const e of list){const k=e.startDate.slice(0,7); const g=groups[groups.length-1]; if(g&&g.k===k) g.items.push(e); else groups.push({k,items:[e]});}
+  feed.innerHTML=groups.map(g=>{
+    const [y,m]=g.k.split('-');
+    return `<section class="month">
+      <div class="month-rail"><div class="m">${MONTHS[+m-1]}</div><div class="y">${y}</div><div class="c">${g.items.length} event${g.items.length>1?'s':''}</div></div>
+      <div class="events">${g.items.map(row).join('')}</div>
+    </section>`;
+  }).join('');
+
+  function row(e){
+    const y=split(e.yAttendees),m=split(e.mAttendees),n=split(e.nAttendees);
+    const mine=myStatus(e), d=daysUntil(e.startDate);
+    const chip=(arr,c,lbl)=>arr.length?`<span class="grp"><span class="lbl">${lbl}</span>${arr.map(a=>`<span class="chip ${c} ${a===me?'me':''}">${esc(a)}</span>`).join('')}</span>`:'';
+    const chips=chip(y,'y','going')+chip(m,'m','maybe')+chip(n,'n','out');
+    const when=d<0?`${-d}d ago`:d===0?'today':`in ${d}d`;
+    return `<div class="row ${mine?'me-'+mine:''} ${e.startDate<today?'past':''} ${e.id===nextId?'next':''}" data-id="${esc(e.id)}">
+      <div>
+        <div class="when">${e.id===nextId?'<span class="tag">NEXT</span>':''}${esc(e.dateStr||e.startDate)} <span class="days">${when}</span></div>
+        <div class="title">${e.url?`<a href="${esc(e.url)}" target="_blank" rel="noopener">${esc(e.title)}<span class="ext">↗</span></a>`:esc(e.title)}</div>
+        <div class="meta"><span class="loc">📍 ${esc(e.location||'TBD')}</span>${e.sponsors?`<span class="hosts">${esc(e.sponsors)}</span>`:''}<button class="edit" data-edit="${esc(e.id)}">edit</button></div>
+        ${chips?`<div class="chips">${chips}</div>`:''}
+      </div>
+      <div class="toggle" role="group" aria-label="Rollcall">
+        <button class="y ${mine==='y'?'on':''}" data-rc="y" aria-pressed="${mine==='y'}">Y<small>GOING</small></button>
+        <button class="m ${mine==='m'?'on':''}" data-rc="m" aria-pressed="${mine==='m'}">M<small>MAYBE</small></button>
+        <button class="n ${mine==='n'?'on':''}" data-rc="n" aria-pressed="${mine==='n'}">N<small>OUT</small></button>
+      </div>
+    </div>`;
+  }
+}
+
+/* ---------- rollcall ---------- */
+feed.addEventListener('click',async ev=>{
+  const rc=ev.target.closest('[data-rc]'); const ed=ev.target.closest('[data-edit]');
+  if(ed){openEdit(ed.dataset.edit);return}
+  if(!rc) return;
+  if(!me){ init.focus(); init.classList.add('flash'); setTimeout(()=>init.classList.remove('flash'),1200); return; }
+  const id=rc.closest('.row').dataset.id, choice=rc.dataset.rc;
+  const e=events.find(x=>x.id===id); if(!e) return;
+  const key=c=>c+'Attendees';
+  const was=split(e[key(choice)]).includes(me);
+  for(const c of ['y','m','n']) e[key(c)]=join(split(e[key(c)]).filter(a=>a!==me));
+  if(!was) e[key(choice)]=join([...split(e[key(choice)]),me]);
+  render(); await saveEvent(e);
+});
+
+/* ---------- initials ---------- */
+init.addEventListener('input',()=>{
+  const v=init.value.toUpperCase().replace(/\s+/g,'').slice(0,8);
+  if(init.value!==v) init.value=v;
+  me=v; render(); if(hasLS) localStorage.setItem(KEY_INIT,me); else store.set(KEY_INIT,me,false).catch(()=>{});
+});
+
+/* ---------- add / edit modal ---------- */
+let editingId=null;
+const editModal=$('editModal');
+const f={title:$('fTitle'),url:$('fUrl'),start:$('fStart'),dateStr:$('fDateStr'),loc:$('fLoc'),sponsors:$('fSponsors')};
+function openAdd(){
+  editingId=null; $('editTitle').innerHTML='<span>//</span>ADD EVENT'; $('deleteBtn').style.display='none';
+  Object.values(f).forEach(i=>i.value=''); $('fErr').textContent='';
+  editModal.classList.add('open'); f.title.focus();
+}
+function openEdit(id){
+  const e=events.find(x=>x.id===id); if(!e) return;
+  editingId=id; $('editTitle').innerHTML='<span>//</span>EDIT EVENT'; $('deleteBtn').style.display='';
+  f.title.value=e.title; f.url.value=e.url||''; f.start.value=e.startDate; f.dateStr.value=e.dateStr||'';
+  f.loc.value=e.location||''; f.sponsors.value=e.sponsors||''; $('fErr').textContent='';
+  editModal.classList.add('open'); f.title.focus();
+}
+function closeEdit(){editModal.classList.remove('open')}
+function slug(t){return t.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'').slice(0,40)||'event'}
+$('saveBtn').onclick=async()=>{
+  const title=f.title.value.trim(), start=f.start.value.trim();
+  if(!title){$('fErr').textContent='Title is required.';return}
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(start)){$('fErr').textContent='Start date must look like 2026-10-14.';return}
+  const data={title,url:f.url.value.trim(),startDate:start,dateStr:f.dateStr.value.trim()||start,
+    location:f.loc.value.trim(),sponsors:f.sponsors.value.trim()};
+  let saved;
+  if(editingId){ saved=events.find(x=>x.id===editingId); Object.assign(saved,data); }
+  else{
+    let id=slug(title),b=id,i=2; while(events.some(x=>x.id===id)) id=`${b}-${i++}`;
+    saved={id,...data,yAttendees:'',mAttendees:'',nAttendees:''}; events.push(saved);
+  }
+  sortEvents(); render(); closeEdit(); await saveEvent(saved);
+};
+$('deleteBtn').onclick=async()=>{
+  if(!editingId||!confirm('Delete this event for everyone?')) return;
+  const id=editingId; events=events.filter(x=>x.id!==id); render(); closeEdit(); await deleteEvent(id);
+};
+$('cancelBtn').onclick=closeEdit;
+$('addBtn').onclick=openAdd;
+
+/* ---------- who dis ---------- */
+const whoModal=$('whoModal');
+$('whoBtn').onclick=()=>whoModal.classList.add('open');
+$('whoClose').onclick=()=>whoModal.classList.remove('open');
+[editModal,whoModal].forEach(m=>m.addEventListener('click',e=>{if(e.target===m)m.classList.remove('open')}));
+document.addEventListener('keydown',e=>{if(e.key==='Escape'){closeEdit();whoModal.classList.remove('open')}});
+
+load();
+</script>
+</body>
+</html>
