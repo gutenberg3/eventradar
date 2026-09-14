@@ -114,6 +114,33 @@
   .chip.m{color:var(--amber);background:var(--amber-dim)}
   .chip.n{color:var(--text-3);background:rgba(90,113,137,.14);text-decoration:line-through}
   .chip.me{outline:1px solid currentColor}
+  .planlink{font-family:var(--mono);font-size:11px;color:var(--text-4);letter-spacing:.06em;margin-left:2px}
+  .planlink:hover,.planlink.open{color:var(--green)}
+  .cal{display:inline-grid;grid-auto-rows:16px;gap:3px 3px;align-items:center;font-family:var(--mono);font-size:10px;letter-spacing:.04em}
+  .cal .h{text-align:center;color:var(--text-4);line-height:1;white-space:nowrap}
+  .cal .h b{display:block;font-weight:500;font-size:9px;color:var(--text-4);margin-bottom:1px}
+  .cal .h.ev{color:var(--blue)} .cal .h.ev b{color:var(--blue)}
+  .cal .h.all{color:var(--green)} .cal .h.all b{color:var(--green)}
+  .cal .wk{border-left:1px solid var(--line-2);padding-left:3px}
+  .cal .who{color:var(--text-3);padding-right:6px;font-weight:500}
+  .cal .who.me{color:var(--text)}
+  .cal .legend{color:var(--text-4);padding-left:8px;font-size:9px;white-space:nowrap}
+  .cal .legend i{display:inline-block;width:9px;height:9px;border-radius:2px;background:var(--line);vertical-align:-1px;margin:0 2px 0 1px}
+  .cal .legend i.on{background:var(--green)}
+  .cal .d{display:flex;gap:2px;height:12px}
+  .cal .d i{flex:1;border-radius:2px;background:var(--line)}
+  .cal .d.y i.on{background:var(--green)}
+  .cal .d.m i.on{background:var(--amber)}
+  .cal .note{color:var(--text-3);font-family:var(--sans);font-size:11px;padding-left:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:260px}
+  .plan{grid-column:1/-1;margin-top:8px;padding:8px 12px;background:var(--bg-2);border:1px solid var(--line-2);border-radius:6px;font-family:var(--mono);font-size:12px;
+    display:flex;flex-wrap:wrap;gap:8px 28px;align-items:flex-start}
+  .plan-edit{display:flex;flex-wrap:wrap;gap:6px 8px;align-items:center;color:var(--text-3)}
+  .plan-edit input,.plan-edit select{background:var(--bg);color:var(--text);border:1px solid var(--line-2);border-radius:4px;padding:4px 6px;font-family:var(--mono);font-size:12px}
+  .plan-edit input[type=date]{width:130px;color-scheme:dark}
+  .plan-edit .p-note{width:180px;font-family:var(--sans)}
+  .plan-edit .btn{padding:4px 9px;font-size:11px}
+  .plan .hint{margin:0;color:var(--text-4)}
+  .plan>.planlink{margin:2px 0 0;align-self:center}
 
   .toggle{display:inline-flex;border:1px solid var(--line-2);border-radius:6px;overflow:hidden;background:var(--bg-2);margin-top:2px}
   .toggle button{width:40px;height:34px;font-family:var(--mono);font-weight:600;font-size:13px;color:var(--text-3);
@@ -267,6 +294,11 @@ async function sb(path,opts={}){
 const sbAll=()=>sb('events?select=*');
 const sbUpsert=rows=>sb('events',{method:'POST',headers:{Prefer:'resolution=merge-duplicates,return=minimal'},body:JSON.stringify(rows)});
 const sbDelete=id=>sb(`events?id=eq.${encodeURIComponent(id)}`,{method:'DELETE'});
+const toPlanRow=p=>({event_id:p.eventId,initials:p.initials,arrive_date:p.arriveDate||null,arrive_ampm:p.arriveAmpm||'',depart_date:p.departDate||null,depart_ampm:p.departAmpm||'',note:p.note||''});
+const fromPlanRow=r=>({eventId:r.event_id,initials:r.initials,arriveDate:r.arrive_date||'',arriveAmpm:r.arrive_ampm||'',departDate:r.depart_date||'',departAmpm:r.depart_ampm||'',note:r.note||''});
+const sbPlans=()=>sb('plans?select=*');
+const sbPlanUpsert=p=>sb('plans',{method:'POST',headers:{Prefer:'resolution=merge-duplicates,return=minimal'},body:JSON.stringify([toPlanRow(p)])});
+const sbPlanDelete=p=>sb(`plans?event_id=eq.${encodeURIComponent(p.eventId)}&initials=eq.${encodeURIComponent(p.initials)}`,{method:'DELETE'});
 
 /* ---------- seed data ---------- */
 const SEED=[
@@ -291,7 +323,8 @@ const SEED=[
 ].map(e=>({yAttendees:"",mAttendees:"",nAttendees:"",...e}));
 
 /* ---------- state ---------- */
-let events=[], me='', showPast=false;
+let events=[], plans=[], me='', showPast=false; const openPlans=new Set(), editPlans=new Set();
+const KEY_PLANS='radar_plans_v1';
 const $=id=>document.getElementById(id);
 const feed=$('feed'), dot=$('dot'), syncText=$('syncText'), init=$('initials'), status=$('status');
 const today=new Date().toISOString().slice(0,10);
@@ -310,18 +343,32 @@ async function load(){
     if(useSB){
       let rows=await sbAll();
       if(!rows.length){ await sbUpsert(SEED.map(toRow)); rows=await sbAll(); }
-      events=rows.map(fromRow); setSync('live','live');
+      events=rows.map(fromRow);
+      try{ plans=(await sbPlans()).map(fromPlanRow); }catch(e){ console.warn('plans table missing?',e); }
+      setSync('live','live');
     }else{
       const raw=await store.get(KEY_EVENTS,true);
       events=raw?JSON.parse(raw):SEED.map(e=>({...e}));
       if(!raw) await saveAll();
+      const pr=await store.get(KEY_PLANS,true); plans=pr?JSON.parse(pr):[];
       setSync(store.mode==='live'?'live':'local', store.mode==='live'?'live':(store.mode==='local'?'this device only':'session only'));
     }
   }catch(e){ console.error(e); events=events.length?events:SEED.map(e=>({...e})); setSync('err','offline'); }
   me=(hasLS?localStorage.getItem(KEY_INIT):await store.get(KEY_INIT,false))||''; init.value=me;
   sortEvents(); render();
 }
-async function saveAll(){ await store.set(KEY_EVENTS,JSON.stringify(events),true) }
+async function saveAll(){ await store.set(KEY_EVENTS,JSON.stringify(events),true); await store.set(KEY_PLANS,JSON.stringify(plans),true) }
+async function savePlan(p){
+  const i=plans.findIndex(x=>x.eventId===p.eventId&&x.initials===p.initials);
+  if(i>=0) plans[i]=p; else plans.push(p);
+  try{ if(useSB) await sbPlanUpsert(p); else await saveAll(); setSync(store.mode==='live'?'live':'local','plan saved'); }
+  catch(err){ console.error(err); setSync('err','plan save failed'); }
+}
+async function deletePlan(p){
+  plans=plans.filter(x=>!(x.eventId===p.eventId&&x.initials===p.initials));
+  try{ if(useSB) await sbPlanDelete(p); else await saveAll(); setSync(store.mode==='live'?'live':'local','saved'); }
+  catch(err){ console.error(err); setSync('err','save failed'); }
+}
 async function saveEvent(e){
   try{ if(useSB) await sbUpsert([toRow(e)]); else await saveAll(); setSync(store.mode==='live'?'live':'local', store.mode==='live'?'saved':'saved locally'); }
   catch(err){ console.error(err); setSync('err','save failed'); }
@@ -332,16 +379,66 @@ async function deleteEvent(id){
 }
 async function refresh(){
   if(document.hidden) return;
+  if(document.activeElement && document.activeElement.closest('.plan-edit, .modal')) return; // don't clobber typing
   try{
-    if(useSB){ events=(await sbAll()).map(fromRow); }
-    else if(hasKV){ const raw=await store.get(KEY_EVENTS,true); if(raw) events=JSON.parse(raw); }
+    let ne=events, np=plans;
+    if(useSB){ ne=(await sbAll()).map(fromRow); try{ np=(await sbPlans()).map(fromPlanRow) }catch(e){} }
+    else if(hasKV){ const raw=await store.get(KEY_EVENTS,true); if(raw) ne=JSON.parse(raw); const pr=await store.get(KEY_PLANS,true); if(pr) np=JSON.parse(pr); }
     else return;
-    sortEvents(); render(); setSync('live','live');
+    const changed=JSON.stringify([ne,np])!==JSON.stringify([events,plans]);
+    events=ne; plans=np; sortEvents(); if(changed) render(); setSync('live','live');
   }catch(e){ setSync('err','offline') }
 }
 setInterval(refresh,8000);
 
 /* ---------- render ---------- */
+const shortDate=d=>{ if(!d) return ''; const x=new Date(d+'T00:00:00'); return `${MONTHS[x.getMonth()].charAt(0)+MONTHS[x.getMonth()].slice(1).toLowerCase()} ${x.getDate()}` };
+const half=(d,ap)=>d?new Date(d+'T00:00:00').getTime()+(ap==='PM'?0.5:0)*864e5:null;
+const addDays=(d,n)=>{const x=new Date(d+'T00:00:00');x.setDate(x.getDate()+n);return x.toISOString().slice(0,10)};
+function planCalendar(e,y,m){
+  const attending=new Set([...y,...m]);
+  const ps=plans.filter(p=>p.eventId===e.id&&attending.has(p.initials)&&(p.arriveDate||p.departDate));
+  if(!ps.length) return '';
+  const dates=ps.flatMap(p=>[p.arriveDate,p.departDate].filter(Boolean)).concat(e.startDate).sort();
+  let start=dates[0], end=dates[dates.length-1];
+  start=addDays(start,-new Date(start+'T00:00:00').getDay());
+  end=addDays(end,6-new Date(end+'T00:00:00').getDay());
+  const days=[]; for(let d=start; d<=end && days.length<28; d=addDays(d,1)) days.push(d);
+  // half-day presence: [am, pm]
+  const halves=(p,d)=>{
+    const a=p.arriveDate||d, b=p.departDate||d;
+    if(d<a||d>b) return [false,false];
+    let am=true, pm=true;
+    if(d===a&&p.arriveAmpm==='PM') am=false;
+    if(d===b&&p.departAmpm==='AM') pm=false;
+    return [am,pm];
+  };
+  const withDates=ps.filter(p=>p.arriveDate&&p.departDate);
+  const allHere=d=>withDates.length>=2&&withDates.every(p=>halves(p,d).every(Boolean));
+  const W=['S','M','T','W','T','F','S'];
+  const isWk=(d,i)=>i>0&&new Date(d+'T00:00:00').getDay()===0;
+  const head=days.map((d,i)=>{const x=new Date(d+'T00:00:00');
+    return `<div class="h${isWk(d,i)?' wk':''}${allHere(d)?' all':d===e.startDate?' ev':''}" title="${d}"><b>${W[x.getDay()]}</b>${x.getDate()}</div>`}).join('')
+    +`<div class="legend"><i class="on"></i>am <i class="on"></i>pm</div>`;
+  const rows=[...ps].sort((a,b)=>(a.initials===me?-1:b.initials===me?1:0)||(a.arriveDate||'').localeCompare(b.arriveDate||'')).map(p=>
+    `<div class="who ${p.initials===me?'me':''}">${esc(p.initials)}</div>`+
+    days.map((d,i)=>{const [am,pm]=halves(p,d);return `<div class="d ${y.includes(p.initials)?'y':'m'}${isWk(d,i)?' wk':''}" title="${esc(p.initials)} ${d}"><i class="${am?'on':''}"></i><i class="${pm?'on':''}"></i></div>`}).join('')+
+    `<div class="note" title="${esc(p.note||'')}">${esc(p.note||'')}</div>`).join('');
+  return `<div class="cal" style="grid-template-columns:auto repeat(${days.length},30px) auto"><div></div>${head}${rows}</div>`;
+}
+function planPanel(e,y,m,mine){
+  const cal=planCalendar(e,y,m);
+  if(!(me&&(mine==='y'||mine==='m'))) return `<div class="plan">${cal||'<div class="hint">No plans yet.</div>'}<div class="hint">${me?'Mark yourself Y or M to add your dates.':'Set your initials to add your dates.'}</div></div>`;
+  const saved=plans.find(p=>p.eventId===e.id&&p.initials===me);
+  if(saved && !editPlans.has(e.id)) return `<div class="plan">${cal}<button class="planlink" data-pedit="${esc(e.id)}">edit plan</button></div>`;
+  const mineP=saved||{arriveDate:e.startDate,departDate:e.startDate,arriveAmpm:'AM',departAmpm:'PM'};
+  return `<div class="plan">${cal}<div class="plan-edit" data-pid="${esc(e.id)}"><span class="chip ${mine} me">${esc(me)}</span>
+      <span>arrive</span><input type="date" class="p-ad" value="${esc(mineP.arriveDate||'')}"><select class="p-ap"><option${mineP.arriveAmpm!=='PM'?' selected':''}>AM</option><option${mineP.arriveAmpm==='PM'?' selected':''}>PM</option></select>
+      <span>depart</span><input type="date" class="p-dd" value="${esc(mineP.departDate||'')}"><select class="p-dp"><option${mineP.departAmpm==='AM'?' selected':''}>AM</option><option${mineP.departAmpm!=='AM'?' selected':''}>PM</option></select>
+      <input class="p-note" maxlength="120" placeholder="note — hotel, ride share, dinner…" value="${esc(mineP.note||'')}">
+      <button class="btn primary p-save" data-psave="${esc(e.id)}">Save</button>${saved?`<button class="btn p-clear" data-pcancel="${esc(e.id)}">Cancel</button><button class="btn p-clear" data-pclear="${esc(e.id)}">Remove</button>`:''}
+  </div></div>`;
+}
 function myStatus(e){const g=split(e.yAttendees),m=split(e.mAttendees),n=split(e.nAttendees);return g.includes(me)?'y':m.includes(me)?'m':n.includes(me)?'n':''}
 
 function renderStatus(){
@@ -384,13 +481,14 @@ function render(){
         <div class="when">${e.id===nextId?'<span class="tag">NEXT</span>':''}${esc(e.dateStr||e.startDate)} <span class="days">${when}</span></div>
         <div class="title">${e.url?`<a href="${esc(e.url)}" target="_blank" rel="noopener">${esc(e.title)}<span class="ext">↗</span></a>`:esc(e.title)}</div>
         <div class="meta"><span class="loc">📍 ${esc(e.location||'TBD')}</span>${e.sponsors?`<span class="hosts">${esc(e.sponsors)}</span>`:''}<button class="edit" data-edit="${esc(e.id)}">edit</button></div>
-        ${chips?`<div class="chips">${chips}</div>`:''}
+        ${chips?`<div class="chips">${chips}${y.length?`<button class="planlink ${openPlans.has(e.id)?'open':''}" data-plan="${esc(e.id)}">${openPlans.has(e.id)?'▾ plan':'▸ plan'}</button>`:''}</div>`:''}
       </div>
       <div class="toggle" role="group" aria-label="Rollcall">
         <button class="y ${mine==='y'?'on':''}" data-rc="y" aria-pressed="${mine==='y'}">Y<small>GOING</small></button>
         <button class="m ${mine==='m'?'on':''}" data-rc="m" aria-pressed="${mine==='m'}">M<small>MAYBE</small></button>
         <button class="n ${mine==='n'?'on':''}" data-rc="n" aria-pressed="${mine==='n'}">N<small>OUT</small></button>
       </div>
+      ${y.length&&openPlans.has(e.id)?planPanel(e,y,m,mine):''}
     </div>`;
   }
 }
@@ -398,7 +496,19 @@ function render(){
 /* ---------- rollcall ---------- */
 feed.addEventListener('click',async ev=>{
   const rc=ev.target.closest('[data-rc]'); const ed=ev.target.closest('[data-edit]');
+  const pl=ev.target.closest('[data-plan]'), ps=ev.target.closest('[data-psave]'), pc=ev.target.closest('[data-pclear]');
+  const pe=ev.target.closest('[data-pedit]'), px=ev.target.closest('[data-pcancel]');
+  if(pe){ editPlans.add(pe.dataset.pedit); render(); return }
+  if(px){ editPlans.delete(px.dataset.pcancel); render(); return }
   if(ed){openEdit(ed.dataset.edit);return}
+  if(pl){ const id=pl.dataset.plan; openPlans.has(id)?openPlans.delete(id):openPlans.add(id); render(); return }
+  if(ps){
+    const box=ps.closest('.plan-edit'), q=c=>box.querySelector(c);
+    const p={eventId:ps.dataset.psave,initials:me,arriveDate:q('.p-ad').value,arriveAmpm:q('.p-ap').value,departDate:q('.p-dd').value,departAmpm:q('.p-dp').value,note:q('.p-note').value.trim()};
+    if(p.arriveDate&&p.departDate&&half(p.departDate,p.departAmpm)<half(p.arriveDate,p.arriveAmpm)){ setSync('err','depart is before arrive'); return }
+    await savePlan(p); editPlans.delete(p.eventId); render(); return
+  }
+  if(pc){ await deletePlan({eventId:pc.dataset.pclear,initials:me}); editPlans.delete(pc.dataset.pclear); render(); return }
   if(!rc) return;
   if(!me){ init.focus(); init.classList.add('flash'); setTimeout(()=>init.classList.remove('flash'),1200); return; }
   const id=rc.closest('.row').dataset.id, choice=rc.dataset.rc;
